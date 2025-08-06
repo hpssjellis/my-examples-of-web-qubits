@@ -193,35 +193,35 @@
             </div>
             <div class="input-group">
                 <label for="alpha00_re">α₀₀ Real Part:</label>
-                <input type="number" id="alpha00_re" value="0.7071" step="0.0001">
+                <input type="number" id="alpha00_re" value="0.4746" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="alpha00_im">α₀₀ Imaginary Part:</label>
-                <input type="number" id="alpha00_im" value="0.0000" step="0.0001">
+                <input type="number" id="alpha00_im" value="0.1898" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="alpha01_re">α₀₁ Real Part:</label>
-                <input type="number" id="alpha01_re" value="0.0000" step="0.0001">
+                <input type="number" id="alpha01_re" value="0.2847" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="alpha01_im">α₀₁ Imaginary Part:</label>
-                <input type="number" id="alpha01_im" value="0.0000" step="0.0001">
+                <input type="number" id="alpha01_im" value="-0.3796" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="alpha10_re">α₁₀ Real Part:</label>
-                <input type="number" id="alpha10_re" value="0.7071" step="0.0001">
+                <input type="number" id="alpha10_re" value="-0.0949" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="alpha10_im">α₁₀ Imaginary Part:</label>
-                <input type="number" id="alpha10_im" value="0.0000" step="0.0001">
+                <input type="number" id="alpha10_im" value="0.5695" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="alpha11_re">α₁₁ Real Part:</label>
-                <input type="number" id="alpha11_re" value="0.0000" step="0.0001">
+                <input type="number" id="alpha11_re" value="0.3796" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="alpha11_im">α₁₁ Imaginary Part:</label>
-                <input type="number" id="alpha11_im" value="0.0000" step="0.0001">
+                <input type="number" id="alpha11_im" value="-0.1898" step="0.0001">
             </div>
             <button id="applyInitialStateBtn">Set Initial State</button>
             <div class="error-message" id="initialStateError"></div>
@@ -317,11 +317,12 @@
         }
 
         // Global state vector for two qubits (4 complex amplitudes)
+        // Initial state set to a non-trivial, normalized superposition
         let twoQubitState = [
-            new Complex(0.7071, 0), // alpha00 for |00>
-            new Complex(0, 0),      // alpha01 for |01>
-            new Complex(0.7071, 0), // alpha10 for |10>
-            new Complex(0, 0)       // alpha11 for |11>
+            new Complex(0.4746, 0.1898), // alpha00 for |00>
+            new Complex(0.2847, -0.3796),// alpha01 for |01>
+            new Complex(-0.0949, 0.5695),// alpha10 for |10>
+            new Complex(0.3796, -0.1898) // alpha11 for |11>
         ];
 
         // Function to update the displayed state and probabilities
