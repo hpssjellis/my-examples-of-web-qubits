@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Qubit Probability Amplitude Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            background-color: #1a202c; /* Dark background */
+            color: #e2e8f0; /* Light text */
+            padding: 1.5rem;
+            box-sizing: border-box;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #63b3ed; /* blue-300 */
+        }
+        .container {
+            background-color: #2d3748; /* Darker background */
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 900px; /* Increased max-width for better layout */
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        canvas {
+            display: block;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+            background-color: #2d3748;
+            margin-bottom: 1.5rem;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.75rem;
+        }
+        button, select, input[type="number"] {
+            background-color: #4299e1; /* blue-500 */
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border: none;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            background-image: linear-gradient(to right, #4299e1, #3182ce);
+            text-align: center;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        button:hover, select:hover, input[type="number"]:hover {
+            background-color: #3182ce; /* blue-600 */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4);
+            background-image: linear-gradient(to right, #3182ce, #2c5282);
+        }
+        button:active, select:active, input[type="number"]:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .input-group label {
+            font-weight: 500;
+            color: #cbd5e0;
+        }
+        input[type="number"] {
+            background-color: #4a5568;
+            border: 1px solid #63b3ed;
+            color: #e2e8f0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .result-box {
+            background-color: #2d3748;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin-top: 1.5rem;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        .flex-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+        }
+        .flex-row > div {
+            flex: 1; /* Distribute space */
+            min-width: 100px; /* Minimum width for each dropdown group */
+        }
+        .flex-row span {
+            flex-shrink: 0; /* Prevent labels from shrinking */
+            color: #cbd5e0;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="text-3xl font-bold">Multi-Qubit Probability Amplitude Visualizer</h1>
+
+    <canvas id="quantumVisualizerCanvas"></canvas>
+
+    <div class="container">
+        <div class="input-group">
+            <label for="numQubits">Number of Qubits (1-4):</label>
+            <input type="number" id="numQubits" value="2" min="1" max="4">
+        </div>
+
+        <div class="controls-grid">
+            <button id="initCircuitBtn">Initialize Circuit</button>
+            <button id="resetBtn">Reset All Qubits</button>
+            <button id="measureAllBtn">Measure All</button>
+        </div>
+
+        <hr class="my-4 border-gray-600">
+
+        <div class="flex-row">
+            <div class="input-group">
+                <label for="singleQubitSelect">Apply Single-Qubit Gate to Qubit:</label>
+                <select id="singleQubitSelect"></select>
+            </div>
+            <button id="hGateBtn">Hadamard (H)</button>
+            <button id="xGateBtn">Pauli-X (X)</button>
+            <button id="yGateBtn">Pauli-Y (Y)</button>
+            <button id="zGateBtn">Pauli-Z (Z)</button>
+        </div>
+
+        <hr class="my-4 border-gray-600">
+
+        <div class="flex-row">
+            <div class="input-group">
+                <label for="cnotControlSelect">CNOT Control Qubit:</label>
+                <select id="cnotControlSelect"></select>
+            </div>
+            <span class="text-gray-300">Control</span>
+            <div class="input-group">
+                <label for="cnotTargetSelect">CNOT Target Qubit:</label>
+                <select id="cnotTargetSelect"></select>
+            </div>
+            <span class="text-gray-300">Target</span>
+            <button id="cnotGateBtn">CNOT</button>
+        </div>
+    </div>
+
+    <div id="resultDisplay" class="result-box">
+        <p>Last Measurement Outcome: <span id="measurementOutcome">N/A</span></p>
+    </div>
+
+    <script type="module">
+        // Import Three.js library
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+        // Import OrbitControls for interactive camera movement
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js';
+        // Import Q.js library for quantum circuit simulation
+        import Q from 'https://unpkg.com/q.js@0.0.3/q.js'; // Using a specific version for stability
+
+        // Three.js scene elements
+        let scene, camera, renderer, controls;
+        // Array to hold the 3D bar meshes representing quantum states
+        let stateBars = [];
+        // Array to hold text labels for each state
+        let stateLabels = [];
+        // Q.js quantum circuit object
+        let quantumCircuit;
+        // Current number of qubits in the simulation
+        let numQubits = 2;
+
+        // DOM elements
+        const numQubitsInput = document.getElementById('numQubits');
+        const initCircuitBtn = document.getElementById('initCircuitBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const measureAllBtn = document.getElementById('measureAllBtn');
+        const singleQubitSelect = document.getElementById('singleQubitSelect');
+        const cnotControlSelect = document.getElementById('cnotControlSelect');
+        const cnotTargetSelect = document.getElementById('cnotTargetSelect');
+        const hGateBtn = document.getElementById('hGateBtn');
+        const xGateBtn = document.getElementById('xGateBtn');
+        const yGateBtn = document.getElementById('yGateBtn');
+        const zGateBtn = document.getElementById('zGateBtn');
+        const cnotGateBtn = document.getElementById('cnotGateBtn');
+        const measurementOutcomeSpan = document.getElementById('measurementOutcome');
+        const canvas = document.getElementById('quantumVisualizerCanvas');
+
+        // --- Three.js Initialization and Animation ---
+        function initThreeJs() {
+            // Scene setup: A container for all 3D objects
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a202c); // Dark background for the scene
+
+            // Camera setup: Defines what the user sees
+            camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+            camera.position.set(0, 5, 8); // Initial camera position
+
+            // Renderer setup: Renders the 3D scene onto the canvas
+            renderer = new THREE.WebGLRenderer({ antialias: true, canvas: canvas });
+            resizeCanvas(); // Set initial size
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // Lighting: Essential for seeing 3D objects
+            const ambientLight = new THREE.AmbientLight(0x404040); // Soft white light
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // Brighter directional light
+            directionalLight.position.set(5, 10, 7);
+            scene.add(directionalLight);
+
+            // OrbitControls: Allows user to rotate, pan, and zoom the camera
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // Smooth camera movement
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 2;
+            controls.maxDistance = 20;
+
+            // Initial quantum circuit setup
+            initializeQuantumCircuit();
+
+            // Handle window resizing
+            window.addEventListener('resize', resizeCanvas);
+
+            // Start the animation loop
+            animate();
+        }
+
+        // Resizes the Three.js canvas to fit the window
+        function resizeCanvas() {
+            const containerWidth = window.innerWidth * 0.9; // 90% of window width
+            const size = Math.min(containerWidth, window.innerHeight * 0.7); // Max 70% of window height
+            renderer.setSize(size, size);
+            camera.aspect = size / size;
+            camera.updateProjectionMatrix();
+        }
+
+        // Animation loop for Three.js
+        function animate() {
+            requestAnimationFrame(animate); // Request next frame
+            controls.update(); // Update camera controls
+            renderer.render(scene, camera); // Render the scene
+        }
+
+        // --- Quantum Circuit Logic and Visualization Update ---
+
+        // Initializes or re-initializes the quantum circuit based on numQubits
+        function initializeQuantumCircuit() {
+            const newNumQubits = parseInt(numQubitsInput.value);
+            if (isNaN(newNumQubits) || newNumQubits < 1 || newNumQubits > 4) {
+                alert('Please enter a number of qubits between 1 and 4.');
+                numQubitsInput.value = numQubits; // Revert to previous valid number
+                return;
+            }
+            numQubits = newNumQubits;
+
+            // Q.js circuit: Q(registers, moments) - we use 1 moment for simplicity
+            quantumCircuit = Q(numQubits, 1);
+            populateQubitSelectors();
+            updateThreeJsVisualization();
+            measurementOutcomeSpan.textContent = 'N/A'; // Clear previous measurement
+        }
+
+        // Populates the dropdown selectors for qubits
+        function populateQubitSelectors() {
+            // Clear existing options
+            singleQubitSelect.innerHTML = '';
+            cnotControlSelect.innerHTML = '';
+            cnotTargetSelect.innerHTML = '';
+
+            for (let i = 0; i < numQubits; i++) {
+                // For single qubit gates
+                let option1 = document.createElement('option');
+                option1.value = i;
+                option1.textContent = `Qubit ${i}`;
+                singleQubitSelect.appendChild(option1);
+
+                // For CNOT control
+                let option2 = document.createElement('option');
+                option2.value = i;
+                option2.textContent = `Qubit ${i}`;
+                cnotControlSelect.appendChild(option2);
+
+                // For CNOT target
+                let option3 = document.createElement('option');
+                option3.value = i;
+                option3.textContent = `Qubit ${i}`;
+                cnotTargetSelect.appendChild(option3);
+            }
+
+            // Set default selections for CNOT if enough qubits exist
+            if (numQubits >= 2) {
+                cnotControlSelect.value = 0;
+                cnotTargetSelect.value = 1;
+            } else {
+                // Disable CNOT if not enough qubits
+                cnotControlSelect.disabled = true;
+                cnotTargetSelect.disabled = true;
+                cnotGateBtn.disabled = true;
+            }
+        }
+
+        // Updates the 3D visualization based on the current quantum state
+        function updateThreeJsVisualization() {
+            // Remove previous bars and labels from the scene
+            stateBars.forEach(bar => scene.remove(bar));
+            stateLabels.forEach(label => scene.remove(label));
+            stateBars = [];
+            stateLabels = [];
+
+            // Evaluate the circuit to get probabilities
+            const report = quantumCircuit.evaluate$();
+            const probabilities = report.probabilities; // Q.js provides probabilities directly
+
+            const numStates = 1 << numQubits; // 2^numQubits
+            const barWidth = 0.8;
+            const barDepth = 0.8;
+            const spacing = 1.0; // Space between bars
+
+            // Calculate grid dimensions for arranging bars
+            const gridSide = Math.ceil(Math.sqrt(numStates));
+            const startX = -((gridSide - 1) * spacing) / 2;
+            const startZ = -((gridSide - 1) * spacing) / 2;
+
+            for (let i = 0; i < numStates; i++) {
+                const binaryState = i.toString(2).padStart(numQubits, '0');
+                const probability = probabilities[binaryState] || 0; // Get probability for this state
+                const barHeight = probability * 5; // Scale height for visualization
+
+                // Create bar geometry and material
+                const geometry = new THREE.BoxGeometry(barWidth, barHeight, barDepth);
+                const material = new THREE.MeshLambertMaterial({ color: 0x4299e1 }); // Blue color
+
+                const bar = new THREE.Mesh(geometry, material);
+
+                // Position the bar in a grid
+                const row = Math.floor(i / gridSide);
+                const col = i % gridSide;
+                bar.position.x = startX + col * spacing;
+                bar.position.y = barHeight / 2; // Position above the XZ plane
+                bar.position.z = startZ + row * spacing;
+
+                scene.add(bar);
+                stateBars.push(bar);
+
+                // Add text label for the state (e.g., "00", "01")
+                // Using a simple sprite for text as TextGeometry requires font loading
+                const canvasText = document.createElement('canvas');
+                const context = canvasText.getContext('2d');
+                context.font = 'Bold 48px Arial';
+                context.fillStyle = 'white';
+                context.fillText(binaryState, 0, 48);
+
+                const texture = new THREE.CanvasTexture(canvasText);
+                const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+                const sprite = new THREE.Sprite(spriteMaterial);
+                sprite.scale.set(1.5, 0.5, 1); // Scale sprite to fit text
+                sprite.position.set(bar.position.x, -0.7, bar.position.z); // Position below the bar
+                scene.add(sprite);
+                stateLabels.push(sprite);
+            }
+            measurementOutcomeSpan.textContent = 'N/A'; // Clear measurement result
+        }
+
+        // Resets all qubits to the |0...0> state
+        function resetAllQubits() {
+            initializeQuantumCircuit(); // Re-initializes the circuit to all |0>
+        }
+
+        // Applies a single-qubit gate (H, X, Y, Z)
+        function applySingleQubitGate(gateName) {
+            const qubitIndex = parseInt(singleQubitSelect.value);
+            if (isNaN(qubitIndex)) {
+                alert('Please select a qubit.');
+                return;
+            }
+            // Q.js applies gates to a specific moment (we use 0 for the first/only moment)
+            quantumCircuit[gateName](0, qubitIndex);
+            updateThreeJsVisualization();
+        }
+
+        // Applies a Controlled-NOT (CNOT) gate
+        function applyCnotGate() {
+            const controlQubit = parseInt(cnotControlSelect.value);
+            const targetQubit = parseInt(cnotTargetSelect.value);
+
+            if (isNaN(controlQubit) || isNaN(targetQubit)) {
+                alert('Please select both control and target qubits.');
+                return;
+            }
+            if (controlQubit === targetQubit) {
+                alert('Control and target qubits cannot be the same!');
+                return;
+            }
+
+            // Q.js CNOT: .x(moment, [control, target])
+            quantumCircuit.x(0, [controlQubit, targetQubit]);
+            updateThreeJsVisualization();
+        }
+
+        // Measures all qubits and displays the probabilistic outcome
+        function measureAllQubits() {
+            // Q.js .evaluate$() runs the circuit and gives a report including measurement results
+            const report = quantumCircuit.evaluate$();
+            // The .try$() method simulates a single measurement based on probabilities
+            const outcome = quantumCircuit.try$();
+            measurementOutcomeSpan.textContent = outcome;
+        }
+
+        // --- Event Listeners ---
+        numQubitsInput.addEventListener('change', initializeQuantumCircuit);
+        initCircuitBtn.addEventListener('click', initializeQuantumCircuit);
+        resetBtn.addEventListener('click', resetAllQubits);
+        measureAllBtn.addEventListener('click', measureAllQubits);
+        hGateBtn.addEventListener('click', () => applySingleQubitGate('h'));
+        xGateBtn.addEventListener('click', () => applySingleQubitGate('x'));
+        yGateBtn.addEventListener('click', () => applySingleQubitGate('y'));
+        zGateBtn.addEventListener('click', () => applySingleQubitGate('z'));
+        cnotGateBtn.addEventListener('click', applyCnotGate);
+
+        // Initial setup when the window loads
+        window.onload = initThreeJs;
+    </script>
+</body>
+</html>
