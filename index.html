@@ -135,19 +135,19 @@
             <h2 class="text-xl font-bold text-center mb-4">Complex Numbers ($\alpha, \beta$)</h2>
             <div class="input-group">
                 <label for="alpha_re">Alpha (α) Real Part:</label>
-                <input type="number" id="alpha_re" value="0.7071" step="0.0001">
+                <input type="number" id="alpha_re" value="0.7500" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="alpha_im">Alpha (α) Imaginary Part:</label>
-                <input type="number" id="alpha_im" value="0.0000" step="0.0001">
+                <input type="number" id="alpha_im" value="0.4330" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="beta_re">Beta (β) Real Part:</label>
-                <input type="number" id="beta_re" value="0.7071" step="0.0001">
+                <input type="number" id="beta_re" value="0.1294" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="beta_im">Beta (β) Imaginary Part:</label>
-                <input type="number" id="beta_im" value="0.0000" step="0.0001">
+                <input type="number" id="beta_im" value="0.4830" step="0.0001">
             </div>
             <button id="convertToAnglesBtn">Convert to Angles</button>
             <div class="error-message" id="complexError"></div>
@@ -162,17 +162,22 @@
             <h2 class="text-xl font-bold text-center mb-4">Angles ($\theta, \phi$)</h2>
             <div class="input-group">
                 <label for="theta">Theta (θ) in Radians (0 to π):</label>
-                <input type="number" id="theta" value="1.5708" step="0.0001">
+                <input type="number" id="theta" value="1.0473" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="phi">Phi (φ) in Radians (0 to 2π):</label>
-                <input type="number" id="phi" value="0.0000" step="0.0001">
+                <input type="number" id="phi" value="0.7854" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="global_phase_angle">Global Phase Angle (γ) in Radians:</label>
+                <input type="number" id="global_phase_angle" value="0.5236" step="0.0001">
             </div>
             <button id="convertToComplexBtn">Convert to Complex Numbers</button>
             <div class="error-message" id="angleError"></div>
             <div class="info-text">
                 <p>Enter the polar angle $\theta$ (0 to $\pi$) and azimuthal angle $\phi$ (0 to $2\pi$). These angles define the qubit's position on the Bloch sphere.</p>
                 <p>The $\theta$ angle determines the probability of measuring $|0\rangle$ or $|1\rangle$. The $\phi$ angle represents the relative phase between the two states.</p>
+                <p>The **Global Phase Angle (γ)** represents an overall phase shift that does not affect the qubit's physical state on the Bloch sphere. However, it can be important when combining qubits. When converting from complex numbers, this field will show the original global phase. When converting to complex numbers, this phase will be applied.</p>
                 <p>Example: For state $|+\rangle$, $\theta = \pi/2$, $\phi = 0$.</p>
             </div>
         </div>
@@ -307,16 +312,18 @@
 
         function onPointerDown(event) {
             isDragging = true;
-            previousMousePosition.x = event.clientX || event.touches[0].clientX;
-            previousMousePosition.y = event.clientY || event.touches[0].clientY;
+            // Determine if it's a touch event or mouse event
+            previousMousePosition.x = event.touches ? event.touches[0].clientX : event.clientX;
+            previousMousePosition.y = event.touches ? event.touches[0].clientY : event.clientY;
             event.preventDefault(); // Prevent scrolling on touch
         }
 
         function onPointerMove(event) {
             if (!isDragging) return;
 
-            const clientX = event.clientX || event.touches[0].clientX;
-            const clientY = event.clientY || event.touches[0].clientY;
+            // Determine if it's a touch event or mouse event
+            const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+            const clientY = event.touches ? event.touches[0].clientY : event.clientY;
 
             const deltaX = clientX - previousMousePosition.x;
             const deltaY = clientY - previousMousePosition.y;
@@ -386,6 +393,10 @@
             }
 
             arg() {
+                // Handle the case where magnitude is zero to avoid NaN
+                if (this.magnitude() === 0) {
+                    return 0; // Or handle as an error, but 0 is a reasonable default for phase of zero vector
+                }
                 return Math.atan2(this.im, this.re);
             }
         }
@@ -400,19 +411,20 @@
             const sum_of_squares = alpha_mag_sq + beta_mag_sq;
 
             if (sum_of_squares === 0) {
-                return { theta: 0, phi: 0, error: "Alpha and Beta cannot both be zero." };
+                return { theta: 0, phi: 0, global_phase: 0, error: "Alpha and Beta cannot both be zero." };
             }
 
-            // Normalize if not already normalized (important for Bloch sphere)
+            // Calculate global phase from the original alpha
+            let global_phase = alpha.arg();
+
+            // Normalize if not already normalized
             const norm_factor = Math.sqrt(sum_of_squares);
             const alpha_norm = new Complex(alpha.re / norm_factor, alpha.im / norm_factor);
             const beta_norm = new Complex(beta.re / norm_factor, beta.im / norm_factor);
 
             // Calculate Bloch sphere Cartesian coordinates (x, y, z)
-            // x = 2 * Re(alpha_conj * beta)
-            // y = 2 * Im(alpha_conj * beta)
-            // z = |alpha|^2 - |beta|^2
-            const alpha_conj_norm = alpha_norm.conjugate(); // Get conjugate of alpha_norm
+            // These coordinates are independent of the global phase
+            const alpha_conj_norm = alpha_norm.conjugate();
             const product = alpha_conj_norm.multiply(beta_norm);
 
             const x = 2 * product.re;
@@ -428,23 +440,33 @@
                 phi += 2 * Math.PI;
             }
 
-            return { theta: theta, phi: phi };
+            return { theta: theta, phi: phi, global_phase: global_phase };
         }
 
         // Function to convert Bloch sphere angles (theta, phi) to complex amplitudes
-        function anglesToComplex(theta, phi) {
-            const alpha_re = Math.cos(theta / 2);
-            const alpha_im = 0; // We typically set alpha to be real by absorbing global phase
+        function anglesToComplex(theta, phi, global_phase) {
+            // Calculate alpha and beta without global phase first
+            const alpha_base_re = Math.cos(theta / 2);
+            const alpha_base_im = 0; // By convention, alpha is real in this representation
 
             const beta_mag = Math.sin(theta / 2);
-            const beta_re = beta_mag * Math.cos(phi);
-            const beta_im = beta_mag * Math.sin(phi);
+            const beta_base_re = beta_mag * Math.cos(phi);
+            const beta_base_im = beta_mag * Math.sin(phi);
+
+            const alpha_base = new Complex(alpha_base_re, alpha_base_im);
+            const beta_base = new Complex(beta_base_re, beta_base_im);
+
+            // Apply the global phase
+            const global_phase_complex = new Complex(Math.cos(global_phase), Math.sin(global_phase));
+
+            const alpha_final = alpha_base.multiply(global_phase_complex);
+            const beta_final = beta_base.multiply(global_phase_complex);
 
             return {
-                alpha_re: alpha_re,
-                alpha_im: alpha_im,
-                beta_re: beta_re,
-                beta_im: beta_im
+                alpha_re: alpha_final.re,
+                alpha_im: alpha_final.im,
+                beta_re: beta_final.re,
+                beta_im: beta_final.im
             };
         }
 
@@ -491,6 +513,7 @@
 
             document.getElementById('theta').value = result.theta.toFixed(4);
             document.getElementById('phi').value = result.phi.toFixed(4);
+            document.getElementById('global_phase_angle').value = result.global_phase.toFixed(4); // Update global phase field
 
             updateQubitVector(result.theta, result.phi);
         });
@@ -498,12 +521,13 @@
         document.getElementById('convertToComplexBtn').addEventListener('click', () => {
             const theta = parseFloat(document.getElementById('theta').value);
             const phi = parseFloat(document.getElementById('phi').value);
+            const global_phase = parseFloat(document.getElementById('global_phase_angle').value); // Get global phase
 
             const angleErrorDiv = document.getElementById('angleError');
             angleErrorDiv.textContent = ''; // Clear previous errors
 
-            if (isNaN(theta) || isNaN(phi)) {
-                angleErrorDiv.textContent = 'Please enter valid numbers for Theta and Phi.';
+            if (isNaN(theta) || isNaN(phi) || isNaN(global_phase)) {
+                angleErrorDiv.textContent = 'Please enter valid numbers for Theta, Phi, and Global Phase.';
                 return;
             }
 
@@ -515,8 +539,9 @@
                 angleErrorDiv.textContent = 'Phi must be between 0 and 2π radians.';
                 return;
             }
+            // Global phase can be any real number, no specific range check needed
 
-            const result = anglesToComplex(theta, phi);
+            const result = anglesToComplex(theta, phi, global_phase); // Pass global phase
 
             document.getElementById('alpha_re').value = result.alpha_re.toFixed(4);
             document.getElementById('alpha_im').value = result.alpha_im.toFixed(4);
