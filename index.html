@@ -139,7 +139,7 @@
             </div>
             <div class="input-group">
                 <label for="alpha_im">Alpha (α) Imaginary Part:</label>
-                <input type="number" id="alpha_im" value="0.0000" step="0.0001">
+                <input type="number" id="alpha_im" value="0.3000" step="0.0001">
             </div>
             <div class="input-group">
                 <label for="beta_re">Beta (β) Real Part:</label>
@@ -147,7 +147,7 @@
             </div>
             <div class="input-group">
                 <label for="beta_im">Beta (β) Imaginary Part:</label>
-                <input type="number" id="beta_im" value="0.0000" step="0.0001">
+                <input type="number" id="beta_im" value="0.5000" step="0.0001">
             </div>
             <button id="convertToAnglesBtn">Convert to Angles</button>
             <div class="error-message" id="complexError"></div>
@@ -211,9 +211,9 @@
             const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
             const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0x4a5568, wireframe: true, transparent: true, opacity: 0.3 });
             blochSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-            scene.add(blochSphere);
+            scene.add(blochSphere); // Add the sphere to the scene
 
-            // Axes (X, Y, Z)
+            // Axes (X, Y, Z) - now children of blochSphere
             const axisLength = 1.2;
             const axisRadius = 0.01;
             const origin = new THREE.Vector3(0, 0, 0);
@@ -224,16 +224,16 @@
             const xAxis = new THREE.Mesh(xAxisGeometry, xAxisMaterial);
             xAxis.rotation.z = -Math.PI / 2;
             xAxis.position.x = axisLength / 2;
-            scene.add(xAxis);
-            addAxisLabel(scene, 'X', new THREE.Vector3(axisLength + 0.1, 0, 0), 0xff0000);
+            blochSphere.add(xAxis); // Add to blochSphere
+            addAxisLabel(blochSphere, 'X', new THREE.Vector3(axisLength + 0.1, 0, 0), 0xff0000); // Add label to blochSphere
 
             // Y-axis (Green)
             const yAxisGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, axisLength, 8);
             const yAxisMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
             const yAxis = new THREE.Mesh(yAxisGeometry, yAxisMaterial);
             yAxis.position.y = axisLength / 2;
-            scene.add(yAxis);
-            addAxisLabel(scene, 'Y', new THREE.Vector3(0, axisLength + 0.1, 0), 0x00ff00);
+            blochSphere.add(yAxis); // Add to blochSphere
+            addAxisLabel(blochSphere, 'Y', new THREE.Vector3(0, axisLength + 0.1, 0), 0x00ff00); // Add label to blochSphere
 
             // Z-axis (Blue)
             const zAxisGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, axisLength, 8);
@@ -241,16 +241,16 @@
             const zAxis = new THREE.Mesh(zAxisGeometry, zAxisMaterial);
             zAxis.rotation.x = Math.PI / 2;
             zAxis.position.z = axisLength / 2;
-            scene.add(zAxis);
-            addAxisLabel(scene, 'Z', new THREE.Vector3(0, 0, axisLength + 0.1), 0x0000ff);
+            blochSphere.add(zAxis); // Add to blochSphere
+            addAxisLabel(blochSphere, 'Z', new THREE.Vector3(0, 0, axisLength + 0.1), 0x0000ff); // Add label to blochSphere
 
-            // Qubit state vector (arrow)
+            // Qubit state vector (arrow) - now child of blochSphere
             const dir = new THREE.Vector3(0, 0, 1); // Initial state |0>
             const originVec = new THREE.Vector3(0, 0, 0);
             const length = 1;
             const hex = 0xff0000; // Red
             qubitVector = new THREE.ArrowHelper(dir, originVec, length, hex, 0.2, 0.15);
-            scene.add(qubitVector);
+            blochSphere.add(qubitVector); // Add to blochSphere
 
             camera.position.z = 2.5;
 
@@ -277,7 +277,7 @@
         }
 
         // Add text labels for axes (simple text geometry for demonstration)
-        function addAxisLabel(scene, text, position, color) {
+        function addAxisLabel(parentObject, text, position, color) { // Parent object passed here
             const loader = new THREE.FontLoader();
             loader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/fonts/helvetiker_regular.typeface.json', function (font) {
                 const textGeometry = new THREE.TextGeometry(text, {
@@ -288,8 +288,8 @@
                 const textMaterial = new THREE.MeshBasicMaterial({ color: color });
                 const textMesh = new THREE.Mesh(textGeometry, textMaterial);
                 textMesh.position.copy(position);
-                textMesh.lookAt(camera.position); // Make labels always face camera
-                scene.add(textMesh);
+                // Labels are fixed relative to the sphere's axes, so no lookAt needed here.
+                parentObject.add(textMesh); // Add to parentObject
             });
         }
 
@@ -409,11 +409,11 @@
             const beta_norm = new Complex(beta.re / norm_factor, beta.im / norm_factor);
 
             // Calculate Bloch sphere Cartesian coordinates (x, y, z)
-            // x = 2 * Re(alpha*beta_conj)
-            // y = 2 * Im(alpha*beta_conj)
+            // x = 2 * Re(alpha_conj * beta)
+            // y = 2 * Im(alpha_conj * beta)
             // z = |alpha|^2 - |beta|^2
-            const alpha_conj = alpha_norm.conjugate();
-            const product = alpha_conj.multiply(beta_norm); // This is alpha_conj * beta
+            const alpha_conj_norm = alpha_norm.conjugate(); // Get conjugate of alpha_norm
+            const product = alpha_conj_norm.multiply(beta_norm);
 
             const x = 2 * product.re;
             const y = 2 * product.im;
@@ -451,9 +451,6 @@
         // Function to update the 3D qubit vector based on angles
         function updateQubitVector(theta, phi) {
             // Convert spherical coordinates (theta, phi) to Cartesian (x, y, z)
-            // Note: Three.js uses Y-up, Physics uses Z-up. Bloch sphere is usually Z-up.
-            // So, we map Bloch sphere (x,y,z) to Three.js (x,z,-y) or similar.
-            // Let's stick to standard physics Bloch sphere: Z is up/down.
             // x = sin(theta)cos(phi)
             // y = sin(theta)sin(phi)
             // z = cos(theta)
@@ -465,13 +462,6 @@
             const newPosition = new THREE.Vector3(x, y, z);
             qubitVector.setDirection(newPosition.normalize()); // Normalize to unit length
             qubitVector.setLength(1); // Ensure arrow length is 1
-
-            // Update labels to face camera (re-add them for simplicity, or update their lookAt)
-            scene.children.forEach(child => {
-                if (child.isMesh && child.geometry.type === 'TextGeometry') {
-                    child.lookAt(camera.position);
-                }
-            });
 
             render();
         }
