@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Qubit CNOT Gate Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #1a202c; /* Dark background */
+            color: #e2e8f0; /* Light text */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden; /* Prevent horizontal scroll */
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1200px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        @media (min-width: 1024px) {
+            .container {
+                flex-direction: row;
+                justify-content: space-around;
+                align-items: flex-start; /* Align panels at the top */
+            }
+        }
+        .panel {
+            background-color: #2d3748; /* Darker panel background */
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        label {
+            font-weight: 600;
+            color: #cbd5e0;
+        }
+        input[type="number"] {
+            background-color: #4a5568;
+            border: 1px solid #6b7280;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            color: #e2e8f0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #63b3ed;
+            box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.5);
+        }
+        button {
+            background-color: #4299e1; /* Blue button */
+            color: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        button:hover {
+            background-color: #3182ce;
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+        .output-group {
+            background-color: #1a202c;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            color: #a0aec0;
+            font-family: 'Courier New', Courier, monospace;
+            word-break: break-all;
+            white-space: pre-wrap;
+            min-height: 2.5rem;
+            display: flex;
+            align-items: center;
+        }
+        .output-complex {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .output-complex > div {
+            background-color: #1a202c;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            color: #a0aec0;
+            font-family: 'Courier New', Courier, monospace;
+            word-break: break-all;
+            white-space: pre-wrap;
+            min-height: 2.5rem;
+            display: flex;
+            align-items: center;
+        }
+        .output-probabilities {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .output-probabilities > div {
+            background-color: #1a202c;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            color: #a0aec0;
+            font-family: 'Courier New', Courier, monospace;
+            word-break: break-all;
+            white-space: pre-wrap;
+            min-height: 2.5rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .error-message {
+            color: #fc8181; /* Red for errors */
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+        h1 {
+            color: #63b3ed;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+        }
+        .info-text {
+            font-size: 0.9rem;
+            color: #a0aec0;
+            margin-top: 1rem;
+            line-height: 1.5;
+        }
+        .info-text strong {
+            color: #cbd5e0;
+        }
+        .circuit-diagram {
+            background-color: #1a202c;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1rem;
+            line-height: 1.8;
+            white-space: pre;
+            overflow-x: auto;
+            color: #a0aec0;
+        }
+        select {
+            background-color: #4a5568;
+            border: 1px solid #6b7280;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            color: #e2e8f0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        select:focus {
+            outline: none;
+            border-color: #63b3ed;
+            box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.5);
+        }
+        #probabilityVisualizationCanvas {
+            width: 100%;
+            height: 450px; /* Increased height for canvas */
+            background-color: #000;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            touch-action: none; /* Disable default touch actions for custom controls */
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel">
+            <h2 class="text-xl font-bold text-center mb-4">Initial Two-Qubit State</h2>
+            <div class="info-text mb-4">
+                <p>Define the initial state of your two-qubit system. This is a 4-dimensional complex vector:</p>
+                <p>$|\psi\rangle = \alpha_{00}|00\rangle + \alpha_{01}|01\rangle + \alpha_{10}|10\rangle + \alpha_{11}|11\rangle$</p>
+                <p>Remember that the sum of the squares of the magnitudes of all amplitudes must be 1: $|\alpha_{00}|^2 + |\alpha_{01}|^2 + |\alpha_{10}|^2 + |\alpha_{11}|^2 = 1$.</p>
+                <p>A common starting point for entanglement is the state $|+\rangle|0\rangle = \frac{1}{\sqrt{2}}(|00\rangle + |10\rangle)$, which is set as the default.</p>
+            </div>
+            <div class="input-group">
+                <label for="alpha00_re">α₀₀ Real Part:</label>
+                <input type="number" id="alpha00_re" value="0.4746" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="alpha00_im">α₀₀ Imaginary Part:</label>
+                <input type="number" id="alpha00_im" value="0.1898" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="alpha01_re">α₀₁ Real Part:</label>
+                <input type="number" id="alpha01_re" value="0.2847" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="alpha01_im">α₀₁ Imaginary Part:</label>
+                <input type="number" id="alpha01_im" value="-0.3796" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="alpha10_re">α₁₀ Real Part:</label>
+                <input type="number" id="alpha10_re" value="-0.0949" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="alpha10_im">α₁₀ Imaginary Part:</label>
+                <input type="number" id="alpha10_im" value="0.5695" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="alpha11_re">α₁₁ Real Part:</label>
+                <input type="number" id="alpha11_re" value="0.3796" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="alpha11_im">α₁₁ Imaginary Part:</label>
+                <input type="number" id="alpha11_im" value="-0.1898" step="0.0001">
+            </div>
+            <button id="applyInitialStateBtn">Set Initial State</button>
+            <div class="error-message" id="initialStateError"></div>
+        </div>
+
+        <div class="panel">
+            <h2 class="text-xl font-bold text-center mb-4">Apply CNOT Gate</h2>
+            <div class="info-text mb-4">
+                <p>The **CNOT (Controlled-NOT) gate** flips the target qubit if the control qubit is $|1\rangle$. If the control is $|0\rangle$, the target remains unchanged.</p>
+                <p>This gate is essential for creating **entanglement**.</p>
+            </div>
+            <div class="input-group">
+                <label for="controlQubit">Control Qubit:</label>
+                <select id="controlQubit">
+                    <option value="0">Qubit 1</option>
+                    <option value="1">Qubit 2</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="targetQubit">Target Qubit:</label>
+                <select id="targetQubit">
+                    <option value="1">Qubit 2</option>
+                    <option value="0">Qubit 1</option>
+                </select>
+            </div>
+            <button id="applyCNOTBtn">Apply CNOT Gate</button>
+            <div class="error-message" id="cnotError"></div>
+
+            <h3 class="text-lg font-bold mt-6 mb-2">Quantum Circuit Diagram</h3>
+            <div class="circuit-diagram" id="circuitDiagram">
+                Qubit 1: |0> ---
+                Qubit 2: |0> ---
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 class="text-xl font-bold text-center mb-4">Resulting Two-Qubit State</h2>
+            <h3 class="text-lg font-bold mb-2">Complex Amplitudes:</h3>
+            <div class="output-complex">
+                <div>α₀₀: <span id="out_alpha00"></span></div>
+                <div>α₀₁: <span id="out_alpha01"></span></div>
+                <div>α₁₀: <span id="out_alpha10"></span></div>
+                <div>α₁₁: <span id="out_alpha11"></span></div>
+            </div>
+
+            <h3 class="text-lg font-bold mt-6 mb-2">Measurement Probabilities:</h3>
+            <div class="output-probabilities">
+                <div>P(|00⟩): <span id="prob00"></span></div>
+                <div>P(|01⟩): <span id="prob01"></span></div>
+                <div>P(|10⟩): <span id="prob10"></span></div>
+                <div>P(|11⟩): <span id="prob11"></span></div>
+            </div>
+            <div class="info-text mt-4">
+                <p>The **complex amplitudes** show the full quantum state, including phase information crucial for entanglement.</p>
+                <p>The **measurement probabilities** tell you the likelihood of observing each classical outcome when you measure the qubits.</p>
+            </div>
+            <h3 class="text-lg font-bold mt-6 mb-2">3D Probability Visualization:</h3>
+            <canvas id="probabilityVisualizationCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Complex number class (reused from previous app)
+        class Complex {
+            constructor(re, im) {
+                this.re = re;
+                this.im = im;
+            }
+
+            magnitude() {
+                return Math.sqrt(this.re * this.re + this.im * this.im);
+            }
+
+            magnitudeSq() {
+                return this.re * this.re + this.im * this.im;
+            }
+
+            multiply(other) {
+                return new Complex(
+                    this.re * other.re - this.im * other.im,
+                    this.re * other.im + this.im * other.re
+                );
+            }
+
+            // For multiplying by a scalar
+            scale(scalar) {
+                return new Complex(this.re * scalar, this.im * scalar);
+            }
+
+            toString() {
+                if (this.im === 0) return this.re.toFixed(4);
+                if (this.re === 0) return this.im.toFixed(4) + 'i';
+                return `${this.re.toFixed(4)} ${this.im >= 0 ? '+' : '-'} ${Math.abs(this.im).toFixed(4)}i`;
+            }
+
+            arg() {
+                // Handle the case where magnitude is zero to avoid NaN
+                if (this.magnitude() === 0) {
+                    return 0; // Phase of a zero vector is undefined, but 0 is a reasonable default
+                }
+                return Math.atan2(this.im, this.re);
+            }
+        }
+
+        // Global state vector for two qubits (4 complex amplitudes)
+        // Initial state set to a non-trivial, normalized superposition
+        let twoQubitState = [
+            new Complex(0.4746, 0.1898), // alpha00 for |00>
+            new Complex(0.2847, -0.3796),// alpha01 for |01>
+            new Complex(-0.0949, 0.5695),// alpha10 for |10>
+            new Complex(0.3796, -0.1898) // alpha11 for |11>
+        ];
+
+        // Three.js Global Variables for Probability Visualization
+        let probScene, probCamera, probRenderer;
+        let barMeshes = []; // Array to hold the 3D bar meshes
+        let probLabels = []; // Array to hold the text labels for the bars
+        let probIsDragging = false;
+        let probPreviousMousePosition = { x: 0, y: 0 };
+        let probRotation = { x: 0, y: 0 }; // Store current rotation for the bar chart group
+
+        const BASIS_STATES = ["|00⟩", "|01⟩", "|10⟩", "|11⟩"];
+
+        // Initialize Three.js scene for the probability visualization
+        function initProbabilityVisualization() {
+            const canvas = document.getElementById('probabilityVisualizationCanvas');
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+
+            probScene = new THREE.Scene();
+            probCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100);
+            probRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true }); // alpha: true for transparent background
+            probRenderer.setSize(width, height);
+            probRenderer.setClearColor(0x000000, 0); // Transparent background
+
+            // Group to hold all bars and labels for easier rotation
+            const barGroup = new THREE.Group();
+            probScene.add(barGroup);
+
+            const barWidth = 0.8;
+            const barDepth = 0.8;
+            const spacing = 0.2;
+            const startX = -(barWidth * 4 + spacing * 3) / 2 + barWidth / 2; // Center the bars
+
+            for (let i = 0; i < 4; i++) {
+                const geometry = new THREE.BoxGeometry(barWidth, 0.1, barDepth); // Start with small height
+                const material = new THREE.MeshBasicMaterial({ color: 0x4299e1 }); // Default blue
+                const bar = new THREE.Mesh(geometry, material);
+                bar.position.set(startX + i * (barWidth + spacing), 0, 0); // Position at base
+                barGroup.add(bar);
+                barMeshes.push(bar);
+
+                // Add text label for each bar
+                addTextLabel(barGroup, BASIS_STATES[i], new THREE.Vector3(startX + i * (barWidth + spacing), -0.7, 0), 0xe2e8f0);
+            }
+
+            probCamera.position.set(0, 3, 5); // Position camera to view bars from above/front
+            probCamera.lookAt(barGroup.position);
+
+            // Lighting (optional for MeshBasicMaterial, but good practice)
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            probScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(1, 1, 1);
+            probScene.add(directionalLight);
+
+
+            // Mouse/Touch controls for rotation
+            canvas.addEventListener('mousedown', onProbPointerDown);
+            canvas.addEventListener('mousemove', onProbPointerMove);
+            canvas.addEventListener('mouseup', onProbPointerUp);
+            canvas.addEventListener('mouseleave', onProbPointerUp);
+
+            canvas.addEventListener('touchstart', onProbPointerDown, { passive: false });
+            canvas.addEventListener('touchmove', onProbPointerMove, { passive: false });
+            canvas.addEventListener('touchend', onProbPointerUp);
+
+            // Add wheel event for zooming
+            canvas.addEventListener('wheel', onProbMouseWheel);
+
+            window.addEventListener('resize', onProbWindowResize);
+
+            animateProbViz(); // Start animation loop for rendering
+        }
+
+        // Function to map phase angle (radians) to HSL color
+        function phaseToHslColor(phase) {
+            // Normalize phase to be between 0 and 1 for hue
+            let hue = (phase + Math.PI) / (2 * Math.PI); // Map -PI to PI to 0 to 1
+            if (hue < 0) hue += 1; // Ensure positive hue
+            if (hue > 1) hue -= 1; // Ensure hue is within [0, 1)
+
+            // Saturation and Lightness can be fixed or varied
+            const saturation = 0.8;
+            const lightness = 0.6; // Adjust lightness for visibility against dark background
+
+            return new THREE.Color().setHSL(hue, saturation, lightness);
+        }
+
+        // Add text labels for bars
+        function addTextLabel(parentObject, text, position, color) {
+            const loader = new THREE.FontLoader();
+            loader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+                const textGeometry = new THREE.TextGeometry(text, {
+                    font: font,
+                    size: 0.2, // Smaller font size for labels
+                    height: 0.01,
+                });
+                const textMaterial = new THREE.MeshBasicMaterial({ color: color });
+                const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+                textMesh.position.copy(position);
+                textMesh.geometry.computeBoundingBox();
+                textMesh.position.x -= (textMesh.geometry.boundingBox.max.x - textMesh.geometry.boundingBox.min.x) / 2; // Center text
+                parentObject.add(textMesh);
+                probLabels.push(textMesh);
+            });
+        }
+
+        function onProbWindowResize() {
+            const canvas = document.getElementById('probabilityVisualizationCanvas');
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+
+            probCamera.aspect = width / height;
+            probCamera.updateProjectionMatrix();
+            probRenderer.setSize(width, height);
+            renderProbViz();
+        }
+
+        function onProbPointerDown(event) {
+            probIsDragging = true;
+            probPreviousMousePosition.x = event.touches ? event.touches[0].clientX : event.clientX;
+            probPreviousMousePosition.y = event.touches ? event.touches[0].clientY : event.clientY;
+            event.preventDefault();
+        }
+
+        function onProbPointerMove(event) {
+            if (!probIsDragging) return;
+
+            const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+            const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+
+            const deltaX = clientX - probPreviousMousePosition.x;
+            const deltaY = clientY - probPreviousMousePosition.y;
+
+            const rotationSpeed = 0.01;
+            probRotation.y += deltaX * rotationSpeed;
+            probRotation.x += deltaY * rotationSpeed;
+
+            // Limit vertical rotation to prevent flipping
+            probRotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, probRotation.x));
+
+            // Apply rotation to the bar group
+            probScene.children[0].rotation.x = probRotation.x;
+            probScene.children[0].rotation.y = probRotation.y;
+
+
+            probPreviousMousePosition.x = clientX;
+            probPreviousMousePosition.y = clientY;
+
+            renderProbViz();
+            event.preventDefault();
+        }
+
+        function onProbPointerUp() {
+            probIsDragging = false;
+        }
+
+        function onProbMouseWheel(event) {
+            event.preventDefault(); // Prevent page scrolling
+
+            // Adjust camera Z position for zooming
+            const zoomSpeed = 0.1;
+            probCamera.position.z += event.deltaY * zoomSpeed * 0.01; // Smaller step for smoother zoom
+
+            // Limit zoom range
+            probCamera.position.z = Math.max(2, Math.min(10, probCamera.position.z)); // Adjust min/max zoom as needed
+
+            renderProbViz();
+        }
+
+        function animateProbViz() {
+            requestAnimationFrame(animateProbViz);
+            renderProbViz();
+        }
+
+        function renderProbViz() {
+            probRenderer.render(probScene, probCamera);
+        }
+
+
+        // Function to update the displayed state and probabilities
+        function updateDisplay() {
+            const totalMagnitudeSq = twoQubitState.reduce((sum, c) => sum + c.magnitudeSq(), 0);
+            let normalizedState = twoQubitState.map(c => c.scale(1 / Math.sqrt(totalMagnitudeSq)));
+
+            // Display complex amplitudes
+            document.getElementById('out_alpha00').textContent = normalizedState[0].toString();
+            document.getElementById('out_alpha01').textContent = normalizedState[1].toString();
+            document.getElementById('out_alpha10').textContent = normalizedState[2].toString();
+            document.getElementById('out_alpha11').textContent = normalizedState[3].toString();
+
+            // Display probabilities
+            document.getElementById('prob00').textContent = (normalizedState[0].magnitudeSq() * 100).toFixed(2) + '%';
+            document.getElementById('prob01').textContent = (normalizedState[1].magnitudeSq() * 100).toFixed(2) + '%';
+            document.getElementById('prob10').textContent = (normalizedState[2].magnitudeSq() * 100).toFixed(2) + '%';
+            document.getElementById('prob11').textContent = (normalizedState[3].magnitudeSq() * 100).toFixed(2) + '%';
+
+            // Update 3D probability visualization
+            updateProbabilityVisualization(normalizedState);
+        }
+
+        // Function to normalize the state vector (ensures sum of probabilities is 1)
+        function normalizeStateVector(stateVector) {
+            const sumOfSquares = stateVector.reduce((sum, c) => sum + c.magnitudeSq(), 0);
+            if (sumOfSquares === 0) {
+                // Handle the case of a zero vector (e.g., return zero vector or throw error)
+                return stateVector.map(() => new Complex(0, 0));
+            }
+            const normFactor = Math.sqrt(sumOfSquares);
+            return stateVector.map(c => c.scale(1 / normFactor));
+        }
+
+        // Function to apply a 4x4 matrix to a 4-element complex vector
+        function applyMatrix(matrix, stateVector) {
+            let newState = [new Complex(0, 0), new Complex(0, 0), new Complex(0, 0), new Complex(0, 0)];
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    newState[i] = newState[i].add(matrix[i][j].multiply(stateVector[j]));
+                }
+            }
+            return newState;
+        }
+
+        // Add method to Complex class for addition
+        Complex.prototype.add = function(other) {
+            return new Complex(this.re + other.re, this.im + other.im);
+        };
+
+        // CNOT Gate Matrices
+        // Qubit 1 (Control), Qubit 2 (Target)
+        const CNOT_Q1_Control_Q2_Target = [
+            [new Complex(1,0), new Complex(0,0), new Complex(0,0), new Complex(0,0)],
+            [new Complex(0,0), new Complex(1,0), new Complex(0,0), new Complex(0,0)],
+            [new Complex(0,0), new Complex(0,0), new Complex(0,0), new Complex(1,0)],
+            [new Complex(0,0), new Complex(0,0), new Complex(1,0), new Complex(0,0)]
+        ];
+
+        // Qubit 2 (Control), Qubit 1 (Target)
+        const CNOT_Q2_Control_Q1_Target = [
+            [new Complex(1,0), new Complex(0,0), new Complex(0,0), new Complex(0,0)],
+            [new Complex(0,0), new Complex(0,0), new Complex(0,0), new Complex(1,0)],
+            [new Complex(0,0), new Complex(0,0), new Complex(1,0), new Complex(0,0)],
+            [new Complex(0,0), new Complex(1,0), new Complex(0,0), new Complex(0,0)]
+        ];
+
+        // Function to update the circuit diagram
+        function updateCircuitDiagram(control, target, operation = 'initial') {
+            const diagramDiv = document.getElementById('circuitDiagram');
+            let diagram = '';
+
+            if (operation === 'initial') {
+                diagram = `Qubit 1: |0> ---
+Qubit 2: |0> ---`;
+            } else if (operation === 'CNOT') {
+                const controlLine = control === 0 ? 'Qubit 1' : 'Qubit 2';
+                const targetLine = target === 0 ? 'Qubit 1' : 'Qubit 2';
+
+                if (control === 0 && target === 1) { // Q1 Control, Q2 Target
+                    diagram = `Qubit 1: |0> ---●---
+Qubit 2: |0> ---|---X---`;
+                } else { // Q2 Control, Q1 Target
+                    diagram = `Qubit 1: |0> ---|---X---
+Qubit 2: |0> ---●---`;
+                }
+            }
+            diagramDiv.textContent = diagram;
+        }
+
+        // Function to update the 3D probability visualization
+        function updateProbabilityVisualization(normalizedState) {
+            const maxHeight = 3; // Max height for a bar (e.g., for 100% probability)
+            const baseHeight = 0.01; // Minimum height to always show the bar
+
+            for (let i = 0; i < 4; i++) {
+                const probability = normalizedState[i].magnitudeSq();
+                const phase = normalizedState[i].arg();
+
+                const bar = barMeshes[i];
+                const newHeight = Math.max(baseHeight, probability * maxHeight); // Ensure a minimum height
+
+                // Update bar height
+                bar.scale.y = newHeight / bar.geometry.parameters.height;
+                bar.position.y = (newHeight / 2) - (bar.geometry.parameters.height / 2); // Adjust position to keep base at y=0
+
+                // Update bar color based on phase
+                bar.material.color.copy(phaseToHslColor(phase));
+
+                // Update label position (if needed, relative to bar)
+                if (probLabels[i]) {
+                    probLabels[i].position.y = newHeight / 2 + 0.3; // Position label slightly above the bar
+                }
+            }
+            renderProbViz();
+        }
+
+        // --- Event Listeners ---
+
+        document.getElementById('applyInitialStateBtn').addEventListener('click', () => {
+            const alpha00_re = parseFloat(document.getElementById('alpha00_re').value);
+            const alpha00_im = parseFloat(document.getElementById('alpha00_im').value);
+            const alpha01_re = parseFloat(document.getElementById('alpha01_re').value);
+            const alpha01_im = parseFloat(document.getElementById('alpha01_im').value);
+            const alpha10_re = parseFloat(document.getElementById('alpha10_re').value);
+            const alpha10_im = parseFloat(document.getElementById('alpha10_im').value);
+            const alpha11_re = parseFloat(document.getElementById('alpha11_re').value);
+            const alpha11_im = parseFloat(document.getElementById('alpha11_im').value);
+
+            const initialStateErrorDiv = document.getElementById('initialStateError');
+            initialStateErrorDiv.textContent = '';
+
+            if (isNaN(alpha00_re) || isNaN(alpha00_im) || isNaN(alpha01_re) || isNaN(alpha01_im) ||
+                isNaN(alpha10_re) || isNaN(alpha10_im) || isNaN(alpha11_re) || isNaN(alpha11_im)) {
+                initialStateErrorDiv.textContent = 'Please enter valid numbers for all complex parts.';
+                return;
+            }
+
+            const tempState = [
+                new Complex(alpha00_re, alpha00_im),
+                new Complex(alpha01_re, alpha01_im),
+                new Complex(alpha10_re, alpha10_im),
+                new Complex(alpha11_re, alpha11_im)
+            ];
+
+            const sumOfSquares = tempState.reduce((sum, c) => sum + c.magnitudeSq(), 0);
+            if (Math.abs(sumOfSquares - 1) > 1e-6) { // Check normalization with a small tolerance
+                initialStateErrorDiv.textContent = `Normalization error: |α₀₀|² + ... + |α₁₁|² = ${sumOfSquares.toFixed(4)}, should be 1.`;
+                return;
+            }
+
+            twoQubitState = tempState;
+            updateDisplay();
+            updateCircuitDiagram(0, 0, 'initial'); // Reset diagram
+        });
+
+        document.getElementById('applyCNOTBtn').addEventListener('click', () => {
+            const controlQubit = parseInt(document.getElementById('controlQubit').value);
+            const targetQubit = parseInt(document.getElementById('targetQubit').value);
+
+            const cnotErrorDiv = document.getElementById('cnotError');
+            cnotErrorDiv.textContent = '';
+
+            if (controlQubit === targetQubit) {
+                cnotErrorDiv.textContent = 'Control and Target qubits cannot be the same.';
+                return;
+            }
+
+            let cnotMatrix;
+            if (controlQubit === 0 && targetQubit === 1) { // Q1 Control, Q2 Target
+                cnotMatrix = CNOT_Q1_Control_Q2_Target;
+            } else { // Q2 Control, Q1 Target
+                cnotMatrix = CNOT_Q2_Control_Q1_Target;
+            }
+
+            twoQubitState = applyMatrix(cnotMatrix, twoQubitState);
+            twoQubitState = normalizeStateVector(twoQubitState); // Re-normalize after gate application
+            updateDisplay();
+            updateCircuitDiagram(controlQubit, targetQubit, 'CNOT');
+        });
+
+        // Initialize display and 3D visualization on page load
+        window.onload = function() {
+            initProbabilityVisualization(); // Initialize the 3D bars
+            updateDisplay(); // Update all displays with initial state
+            updateCircuitDiagram(0, 0, 'initial');
+        };
+    </script>
+</body>
+</html>
