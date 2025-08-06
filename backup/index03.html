@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qubit Bloch Sphere Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #1a202c; /* Dark background */
+            color: #e2e8f0; /* Light text */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden; /* Prevent horizontal scroll */
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1200px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        @media (min-width: 1024px) {
+            .container {
+                flex-direction: row;
+                justify-content: space-around;
+            }
+        }
+        .panel {
+            background-color: #2d3748; /* Darker panel background */
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        label {
+            font-weight: 600;
+            color: #cbd5e0;
+        }
+        input[type="number"] {
+            background-color: #4a5568;
+            border: 1px solid #6b7280;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            color: #e2e8f0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #63b3ed;
+            box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.5);
+        }
+        button {
+            background-color: #4299e1; /* Blue button */
+            color: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        button:hover {
+            background-color: #3182ce;
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+        .output-group {
+            background-color: #1a202c;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            color: #a0aec0;
+            font-family: 'Courier New', Courier, monospace;
+            word-break: break-all;
+            white-space: pre-wrap;
+            min-height: 2.5rem;
+            display: flex;
+            align-items: center;
+        }
+        #blochSphereCanvas {
+            width: 100%;
+            height: 400px; /* Fixed height for canvas */
+            background-color: #000;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            touch-action: none; /* Disable default touch actions for custom controls */
+        }
+        .error-message {
+            color: #fc8181; /* Red for errors */
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+        h1 {
+            color: #63b3ed;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+        }
+        .info-text {
+            font-size: 0.9rem;
+            color: #a0aec0;
+            margin-top: 1rem;
+            line-height: 1.5;
+        }
+        .info-text strong {
+            color: #cbd5e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel">
+            <h2 class="text-xl font-bold text-center mb-4">Complex Numbers ($\alpha, \beta$)</h2>
+            <div class="input-group">
+                <label for="alpha_re">Alpha (α) Real Part:</label>
+                <input type="number" id="alpha_re" value="0.7071" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="alpha_im">Alpha (α) Imaginary Part:</label>
+                <input type="number" id="alpha_im" value="0.0000" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="beta_re">Beta (β) Real Part:</label>
+                <input type="number" id="beta_re" value="0.7071" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="beta_im">Beta (β) Imaginary Part:</label>
+                <input type="number" id="beta_im" value="0.0000" step="0.0001">
+            </div>
+            <button id="convertToAnglesBtn">Convert to Angles</button>
+            <div class="error-message" id="complexError"></div>
+            <div class="info-text">
+                <p>Enter the real and imaginary parts of $\alpha$ and $\beta$. These are the complex amplitudes of the $|0\rangle$ and $|1\rangle$ states.</p>
+                <p>Remember, for a valid qubit state, the sum of the squares of the magnitudes of $\alpha$ and $\beta$ must be 1: $|\alpha|^2 + |\beta|^2 = 1$.</p>
+                <p>Example: For state $|+\rangle$, $\alpha = 1/\sqrt{2}$, $\beta = 1/\sqrt{2}$.</p>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 class="text-xl font-bold text-center mb-4">Angles ($\theta, \phi$)</h2>
+            <div class="input-group">
+                <label for="theta">Theta (θ) in Radians (0 to π):</label>
+                <input type="number" id="theta" value="1.5708" step="0.0001">
+            </div>
+            <div class="input-group">
+                <label for="phi">Phi (φ) in Radians (0 to 2π):</label>
+                <input type="number" id="phi" value="0.0000" step="0.0001">
+            </div>
+            <button id="convertToComplexBtn">Convert to Complex Numbers</button>
+            <div class="error-message" id="angleError"></div>
+            <div class="info-text">
+                <p>Enter the polar angle $\theta$ (0 to $\pi$) and azimuthal angle $\phi$ (0 to $2\pi$). These angles define the qubit's position on the Bloch sphere.</p>
+                <p>The $\theta$ angle determines the probability of measuring $|0\rangle$ or $|1\rangle$. The $\phi$ angle represents the relative phase between the two states.</p>
+                <p>Example: For state $|+\rangle$, $\theta = \pi/2$, $\phi = 0$.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mt-6">
+        <div class="panel flex-grow">
+            <h2 class="text-xl font-bold text-center mb-4">Qubit State Visualization (Bloch Sphere)</h2>
+            <canvas id="blochSphereCanvas"></canvas>
+            <div class="info-text">
+                <p>The sphere represents all possible pure states of a single qubit. The North Pole is $|0\rangle$, and the South Pole is $|1\rangle$.</p>
+                <p>The red arrow points to the current state of the qubit. You can click and drag on the sphere to rotate the view.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Three.js Global Variables
+        let scene, camera, renderer, qubitVector, blochSphere;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        // Initialize Three.js scene
+        function initThreeJS() {
+            const canvas = document.getElementById('blochSphereCanvas');
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(width, height);
+            renderer.setClearColor(0x1a202c, 1); // Match body background
+
+            // Bloch Sphere (unit sphere)
+            const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+            const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0x4a5568, wireframe: true, transparent: true, opacity: 0.3 });
+            blochSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            scene.add(blochSphere); // Add the sphere to the scene
+
+            // Axes (X, Y, Z) - now children of blochSphere
+            const axisLength = 1.2;
+            const axisRadius = 0.01;
+            const origin = new THREE.Vector3(0, 0, 0);
+
+            // X-axis (Red)
+            const xAxisGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, axisLength, 8);
+            const xAxisMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const xAxis = new THREE.Mesh(xAxisGeometry, xAxisMaterial);
+            xAxis.rotation.z = -Math.PI / 2;
+            xAxis.position.x = axisLength / 2;
+            blochSphere.add(xAxis); // Add to blochSphere
+            addAxisLabel(blochSphere, 'X', new THREE.Vector3(axisLength + 0.1, 0, 0), 0xff0000); // Add label to blochSphere
+
+            // Y-axis (Green)
+            const yAxisGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, axisLength, 8);
+            const yAxisMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const yAxis = new THREE.Mesh(yAxisGeometry, yAxisMaterial);
+            yAxis.position.y = axisLength / 2;
+            blochSphere.add(yAxis); // Add to blochSphere
+            addAxisLabel(blochSphere, 'Y', new THREE.Vector3(0, axisLength + 0.1, 0), 0x00ff00); // Add label to blochSphere
+
+            // Z-axis (Blue)
+            const zAxisGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, axisLength, 8);
+            const zAxisMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+            const zAxis = new THREE.Mesh(zAxisGeometry, zAxisMaterial);
+            zAxis.rotation.x = Math.PI / 2;
+            zAxis.position.z = axisLength / 2;
+            blochSphere.add(zAxis); // Add to blochSphere
+            addAxisLabel(blochSphere, 'Z', new THREE.Vector3(0, 0, axisLength + 0.1), 0x0000ff); // Add label to blochSphere
+
+            // Qubit state vector (arrow) - now child of blochSphere
+            const dir = new THREE.Vector3(0, 0, 1); // Initial state |0>
+            const originVec = new THREE.Vector3(0, 0, 0);
+            const length = 1;
+            const hex = 0xff0000; // Red
+            qubitVector = new THREE.ArrowHelper(dir, originVec, length, hex, 0.2, 0.15);
+            blochSphere.add(qubitVector); // Add to blochSphere
+
+            camera.position.z = 2.5;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+
+            // Mouse/Touch controls for rotation
+            canvas.addEventListener('mousedown', onPointerDown);
+            canvas.addEventListener('mousemove', onPointerMove);
+            canvas.addEventListener('mouseup', onPointerUp);
+            canvas.addEventListener('mouseleave', onPointerUp); // Stop dragging if mouse leaves canvas
+
+            canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+            canvas.addEventListener('touchmove', onPointerMove, { passive: false });
+            canvas.addEventListener('touchend', onPointerUp);
+
+            window.addEventListener('resize', onWindowResize);
+
+            animate();
+        }
+
+        // Add text labels for axes (simple text geometry for demonstration)
+        function addAxisLabel(parentObject, text, position, color) { // Parent object passed here
+            const loader = new THREE.FontLoader();
+            loader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+                const textGeometry = new THREE.TextGeometry(text, {
+                    font: font,
+                    size: 0.15,
+                    height: 0.01,
+                });
+                const textMaterial = new THREE.MeshBasicMaterial({ color: color });
+                const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+                textMesh.position.copy(position);
+                // Labels are fixed relative to the sphere's axes, so no lookAt needed here.
+                parentObject.add(textMesh); // Add to parentObject
+            });
+        }
+
+        function onWindowResize() {
+            const canvas = document.getElementById('blochSphereCanvas');
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+            // Re-render to apply new size
+            render();
+        }
+
+        function onPointerDown(event) {
+            isDragging = true;
+            previousMousePosition.x = event.clientX || event.touches[0].clientX;
+            previousMousePosition.y = event.clientY || event.touches[0].clientY;
+            event.preventDefault(); // Prevent scrolling on touch
+        }
+
+        function onPointerMove(event) {
+            if (!isDragging) return;
+
+            const clientX = event.clientX || event.touches[0].clientX;
+            const clientY = event.clientY || event.touches[0].clientY;
+
+            const deltaX = clientX - previousMousePosition.x;
+            const deltaY = clientY - previousMousePosition.y;
+
+            // Rotate sphere based on mouse movement
+            const rotationSpeed = 0.01;
+            blochSphere.rotation.y += deltaX * rotationSpeed;
+            blochSphere.rotation.x += deltaY * rotationSpeed;
+
+            // Keep rotations within reasonable bounds to prevent flipping
+            blochSphere.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, blochSphere.rotation.x));
+
+            previousMousePosition.x = clientX;
+            previousMousePosition.y = clientY;
+
+            render(); // Re-render on drag
+            event.preventDefault(); // Prevent scrolling on touch
+        }
+
+        function onPointerUp() {
+            isDragging = false;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            // No continuous animation needed unless we want it to spin constantly
+            // render();
+        }
+
+        function render() {
+            renderer.render(scene, camera);
+        }
+
+        // --- Qubit Math Functions ---
+
+        // Complex number class for easier handling
+        class Complex {
+            constructor(re, im) {
+                this.re = re;
+                this.im = im;
+            }
+
+            magnitude() {
+                return Math.sqrt(this.re * this.re + this.im * this.im);
+            }
+
+            multiply(other) {
+                return new Complex(
+                    this.re * other.re - this.im * other.im,
+                    this.re * other.im + this.im * other.re
+                );
+            }
+
+            conjugate() {
+                return new Complex(this.re, -this.im);
+            }
+
+            divide(other) {
+                const denominator = other.re * other.re + other.im * other.im;
+                if (denominator === 0) {
+                    throw new Error("Division by zero complex number");
+                }
+                return new Complex(
+                    (this.re * other.re + this.im * other.im) / denominator,
+                    (this.im * other.re - this.re * other.im) / denominator
+                );
+            }
+
+            arg() {
+                return Math.atan2(this.im, this.re);
+            }
+        }
+
+        // Function to convert complex amplitudes to Bloch sphere angles (theta, phi)
+        function complexToAngles(alpha_re, alpha_im, beta_re, beta_im) {
+            const alpha = new Complex(alpha_re, alpha_im);
+            const beta = new Complex(beta_re, beta_im);
+
+            const alpha_mag_sq = alpha.magnitude() ** 2;
+            const beta_mag_sq = beta.magnitude() ** 2;
+            const sum_of_squares = alpha_mag_sq + beta_mag_sq;
+
+            if (sum_of_squares === 0) {
+                return { theta: 0, phi: 0, error: "Alpha and Beta cannot both be zero." };
+            }
+
+            // Normalize if not already normalized (important for Bloch sphere)
+            const norm_factor = Math.sqrt(sum_of_squares);
+            const alpha_norm = new Complex(alpha.re / norm_factor, alpha.im / norm_factor);
+            const beta_norm = new Complex(beta.re / norm_factor, beta.im / norm_factor);
+
+            // Calculate Bloch sphere Cartesian coordinates (x, y, z)
+            // x = 2 * Re(alpha_conj * beta)
+            // y = 2 * Im(alpha_conj * beta)
+            // z = |alpha|^2 - |beta|^2
+            const alpha_conj_norm = alpha_norm.conjugate(); // Get conjugate of alpha_norm
+            const product = alpha_conj_norm.multiply(beta_norm);
+
+            const x = 2 * product.re;
+            const y = 2 * product.im;
+            const z = alpha_norm.magnitude() ** 2 - beta_norm.magnitude() ** 2;
+
+            // Convert Cartesian to Spherical (theta, phi)
+            let theta = Math.acos(z); // theta is the polar angle (0 to pi)
+            let phi = Math.atan2(y, x); // phi is the azimuthal angle (-pi to pi)
+
+            // Normalize phi to be 0 to 2pi
+            if (phi < 0) {
+                phi += 2 * Math.PI;
+            }
+
+            return { theta: theta, phi: phi };
+        }
+
+        // Function to convert Bloch sphere angles (theta, phi) to complex amplitudes
+        function anglesToComplex(theta, phi) {
+            const alpha_re = Math.cos(theta / 2);
+            const alpha_im = 0; // We typically set alpha to be real by absorbing global phase
+
+            const beta_mag = Math.sin(theta / 2);
+            const beta_re = beta_mag * Math.cos(phi);
+            const beta_im = beta_mag * Math.sin(phi);
+
+            return {
+                alpha_re: alpha_re,
+                alpha_im: alpha_im,
+                beta_re: beta_re,
+                beta_im: beta_im
+            };
+        }
+
+        // Function to update the 3D qubit vector based on angles
+        function updateQubitVector(theta, phi) {
+            // Convert spherical coordinates (theta, phi) to Cartesian (x, y, z)
+            // x = sin(theta)cos(phi)
+            // y = sin(theta)sin(phi)
+            // z = cos(theta)
+
+            const x = Math.sin(theta) * Math.cos(phi);
+            const y = Math.sin(theta) * Math.sin(phi);
+            const z = Math.cos(theta);
+
+            const newPosition = new THREE.Vector3(x, y, z);
+            qubitVector.setDirection(newPosition.normalize()); // Normalize to unit length
+            qubitVector.setLength(1); // Ensure arrow length is 1
+
+            render();
+        }
+
+        // --- Event Handlers ---
+
+        document.getElementById('convertToAnglesBtn').addEventListener('click', () => {
+            const alpha_re = parseFloat(document.getElementById('alpha_re').value);
+            const alpha_im = parseFloat(document.getElementById('alpha_im').value);
+            const beta_re = parseFloat(document.getElementById('beta_re').value);
+            const beta_im = parseFloat(document.getElementById('beta_im').value);
+
+            const complexErrorDiv = document.getElementById('complexError');
+            complexErrorDiv.textContent = ''; // Clear previous errors
+
+            if (isNaN(alpha_re) || isNaN(alpha_im) || isNaN(beta_re) || isNaN(beta_im)) {
+                complexErrorDiv.textContent = 'Please enter valid numbers for all complex parts.';
+                return;
+            }
+
+            const result = complexToAngles(alpha_re, alpha_im, beta_re, beta_im);
+
+            if (result.error) {
+                complexErrorDiv.textContent = result.error;
+                return;
+            }
+
+            document.getElementById('theta').value = result.theta.toFixed(4);
+            document.getElementById('phi').value = result.phi.toFixed(4);
+
+            updateQubitVector(result.theta, result.phi);
+        });
+
+        document.getElementById('convertToComplexBtn').addEventListener('click', () => {
+            const theta = parseFloat(document.getElementById('theta').value);
+            const phi = parseFloat(document.getElementById('phi').value);
+
+            const angleErrorDiv = document.getElementById('angleError');
+            angleErrorDiv.textContent = ''; // Clear previous errors
+
+            if (isNaN(theta) || isNaN(phi)) {
+                angleErrorDiv.textContent = 'Please enter valid numbers for Theta and Phi.';
+                return;
+            }
+
+            if (theta < 0 || theta > Math.PI) {
+                angleErrorDiv.textContent = 'Theta must be between 0 and π radians.';
+                return;
+            }
+            if (phi < 0 || phi > 2 * Math.PI) {
+                angleErrorDiv.textContent = 'Phi must be between 0 and 2π radians.';
+                return;
+            }
+
+            const result = anglesToComplex(theta, phi);
+
+            document.getElementById('alpha_re').value = result.alpha_re.toFixed(4);
+            document.getElementById('alpha_im').value = result.alpha_im.toFixed(4);
+            document.getElementById('beta_re').value = result.beta_re.toFixed(4);
+            document.getElementById('beta_im').value = result.beta_im.toFixed(4);
+
+            updateQubitVector(theta, phi);
+        });
+
+        // Initial update of the Bloch sphere and conversion on page load
+        window.onload = function() {
+            initThreeJS();
+            // Trigger initial conversion from complex numbers to update the sphere
+            document.getElementById('convertToAnglesBtn').click();
+        };
+    </script>
+</body>
+</html>
