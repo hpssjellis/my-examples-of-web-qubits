@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Bloch Sphere Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #1a202c; /* Dark background */
+            color: #e2e8f0; /* Light text */
+        }
+        canvas {
+            display: block;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5); /* shadow-lg */
+            background-color: #2d3748; /* Darker background for canvas */
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem; /* gap-3 */
+            margin-top: 1.5rem; /* mt-6 */
+            justify-content: center;
+        }
+        button {
+            background-color: #4299e1; /* blue-500 */
+            color: white;
+            padding: 0.75rem 1.5rem; /* py-3 px-6 */
+            border-radius: 0.75rem; /* rounded-xl */
+            font-weight: 600; /* font-semibold */
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); /* shadow-md */
+            border: none;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            background-image: linear-gradient(to right, #4299e1, #3182ce); /* Gradient */
+        }
+        button:hover {
+            background-color: #3182ce; /* blue-600 */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4);
+            background-image: linear-gradient(to right, #3182ce, #2c5282); /* Darker gradient */
+        }
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+            opacity: 0;
+        }
+        button:hover::before {
+            width: 200%;
+            height: 200%;
+            opacity: 1;
+        }
+        .result-box {
+            background-color: #2d3748;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin-top: 1.5rem;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body class="p-4">
+    <h1 class="text-3xl font-bold mb-6 text-blue-300">Quantum Bloch Sphere Visualizer</h1>
+    <canvas id="blochSphereCanvas"></canvas>
+    <div class="controls">
+        <button id="resetBtn">Reset (|0⟩)</button>
+        <button id="hGateBtn">Hadamard (H)</button>
+        <button id="xGateBtn">Pauli-X (X)</button>
+        <button id="yGateBtn">Pauli-Y (Y)</button>
+        <button id="zGateBtn">Pauli-Z (Z)</button>
+        <button id="measureBtn">Measure</button>
+    </div>
+    <div id="resultDisplay" class="result-box">
+        <p>Measurement Result: <span id="measurementOutcome">N/A</span></p>
+        <p>Probabilities: <span id="probabilities">N/A</span></p>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js';
+        import QuantumCircuit from 'https://unpkg.com/quantum-circuit@latest/lib/index.js';
+
+        let scene, camera, renderer, controls;
+        let blochSphere, qubitVector;
+        let quantumCircuit;
+
+        const measurementOutcomeSpan = document.getElementById('measurementOutcome');
+        const probabilitiesSpan = document.getElementById('probabilities');
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x2d3748); // Match canvas background
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 3;
+
+            // Renderer setup
+            const canvas = document.getElementById('blochSphereCanvas');
+            renderer = new THREE.WebGLRenderer({ antialias: true, canvas: canvas });
+            resizeCanvas(); // Set initial size
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // OrbitControls for camera interaction
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // Smooth camera movement
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 1.5;
+            controls.maxDistance = 5;
+
+            // Bloch Sphere
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshBasicMaterial({ color: 0x4a5568, wireframe: true, transparent: true, opacity: 0.7 });
+            blochSphere = new THREE.Mesh(geometry, material);
+            scene.add(blochSphere);
+
+            // Axes (X, Y, Z)
+            const axisMaterial = new THREE.LineBasicMaterial({ color: 0x9ae6b4 }); // Greenish
+            const xAxisPoints = [new THREE.Vector3(-1.2, 0, 0), new THREE.Vector3(1.2, 0, 0)];
+            const yAxisPoints = [new THREE.Vector3(0, -1.2, 0), new THREE.Vector3(0, 1.2, 0)];
+            const zAxisPoints = [new THREE.Vector3(0, 0, -1.2), new THREE.Vector3(0, 0, 1.2)];
+            scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(xAxisPoints), axisMaterial));
+            scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(yAxisPoints), axisMaterial));
+            scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(zAxisPoints), axisMaterial));
+
+            // Axis labels (simple text, could be more advanced with TextGeometry)
+            addTextToScene("X", new THREE.Vector3(1.3, 0, 0), 0x9ae6b4);
+            addTextToScene("Y", new THREE.Vector3(0, 1.3, 0), 0x9ae6b4);
+            addTextToScene("Z", new THREE.Vector3(0, 0, 1.3), 0x9ae6b4);
+            addTextToScene("|0⟩", new THREE.Vector3(0, 0, 1.1), 0x63b3ed); // Blue for |0>
+            addTextToScene("|1⟩", new THREE.Vector3(0, 0, -1.1), 0xf6e05e); // Yellow for |1>
+            addTextToScene("|+⟩", new THREE.Vector3(1.1, 0, 0), 0xf6ad55); // Orange for |+>
+            addTextToScene("|-⟩", new THREE.Vector3(-1.1, 0, 0), 0xf6ad55); // Orange for |->
+            addTextToScene("|i⟩", new THREE.Vector3(0, 1.1, 0), 0xed8936); // Darker orange for |i>
+            addTextToScene("|-i⟩", new THREE.Vector3(0, -1.1, 0), 0xed8936); // Darker orange for |-i>
+
+
+            // Qubit state vector (arrow)
+            const dir = new THREE.Vector3(0, 0, 1); // Initial state |0>
+            const origin = new THREE.Vector3(0, 0, 0);
+            const length = 1;
+            const hex = 0xff0000; // Red
+            qubitVector = new THREE.ArrowHelper(dir, origin, length, hex, 0.2, 0.15);
+            scene.add(qubitVector);
+
+            // Initialize quantum circuit
+            quantumCircuit = new QuantumCircuit(1); // 1 qubit
+            updateBlochSphere(); // Initial state visualization
+
+            // Event Listeners for buttons
+            document.getElementById('resetBtn').addEventListener('click', resetQubit);
+            document.getElementById('hGateBtn').addEventListener('click', () => applyGate('h'));
+            document.getElementById('xGateBtn').addEventListener('click', () => applyGate('x'));
+            document.getElementById('yGateBtn').addEventListener('click', () => applyGate('y'));
+            document.getElementById('zGateBtn').addEventListener('click', () => applyGate('z'));
+            document.getElementById('measureBtn').addEventListener('click', measureQubit);
+
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        // Helper function to add text labels (simplified, consider TextGeometry for better quality)
+        function addTextToScene(text, position, color) {
+            const loader = new THREE.FontLoader();
+            loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+                const textGeometry = new THREE.TextGeometry(text, {
+                    font: font,
+                    size: 0.15,
+                    height: 0.01,
+                    curveSegments: 12,
+                });
+                textGeometry.computeBoundingBox();
+                textGeometry.center(); // Center the text geometry
+                const textMaterial = new THREE.MeshBasicMaterial({ color: color });
+                const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+                textMesh.position.copy(position);
+                scene.add(textMesh);
+            });
+        }
+
+        function resizeCanvas() {
+            const containerWidth = window.innerWidth * 0.8; // 80% of window width
+            const size = Math.min(containerWidth, window.innerHeight * 0.6); // Max 60% of window height
+            renderer.setSize(size, size);
+            camera.aspect = size / size;
+            camera.updateProjectionMatrix();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // Only required if controls.enableDamping or controls.autoRotate are set to true
+            renderer.render(scene, camera);
+        }
+
+        function updateBlochSphere() {
+            const stateVector = quantumCircuit.stateVector;
+            const alpha = stateVector[0]; // Complex number for |0>
+            const beta = stateVector[1];  // Complex number for |1>
+
+            // Bloch sphere coordinates (x, y, z) from complex amplitudes
+            // x = 2 * Re(alpha * conj(beta))
+            // y = 2 * Im(alpha * conj(beta))
+            // z = |alpha|^2 - |beta|^2
+            const x = 2 * (alpha.re * beta.re + alpha.im * beta.im);
+            const y = 2 * (alpha.im * beta.re - alpha.re * beta.im);
+            const z = (alpha.re * alpha.re + alpha.im * alpha.im) - (beta.re * beta.re + beta.im * beta.im);
+
+            const newDirection = new THREE.Vector3(x, y, z).normalize();
+            qubitVector.setDirection(newDirection);
+
+            // Clear measurement results when state changes
+            measurementOutcomeSpan.textContent = 'N/A';
+            probabilitiesSpan.textContent = 'N/A';
+        }
+
+        function resetQubit() {
+            quantumCircuit = new QuantumCircuit(1); // Reset to |0> state
+            updateBlochSphere();
+        }
+
+        function applyGate(gateName) {
+            quantumCircuit.appendGate(gateName, [0]); // Apply gate to qubit 0
+            updateBlochSphere();
+        }
+
+        function measureQubit() {
+            const result = quantumCircuit.measure(0); // Measure qubit 0
+            measurementOutcomeSpan.textContent = result.result;
+            probabilitiesSpan.textContent = `|0⟩: ${(result.probabilities['0'] * 100).toFixed(2)}%, |1⟩: ${(result.probabilities['1'] * 100).toFixed(2)}%`;
+        }
+
+        // Start the application when the window loads
+        window.onload = function() {
+            init();
+            animate();
+        };
+    </script>
+</body>
+</html>
